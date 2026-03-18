@@ -1,4 +1,4 @@
-#This is Dr. Paula Vaquez's code
+#This is Dr. Paula Vaquez's code. Contains the simulation code and the default parameters
 
 import numpy as np
 import random
