@@ -1,3 +1,4 @@
+# Calculates and plots the mean value of number of LT Cells, ST Cells, and total number of cells over all 100 unique ids for each generation. 
 import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
