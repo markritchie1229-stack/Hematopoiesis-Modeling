@@ -1,4 +1,5 @@
 # These set the parameters that the model will run off of and ensure that the parameters will be used to model the cell division of 100 unique seeds. Creates your pickle file
+# Data is stored in nested dictionaries
 import numpy as np
 import pickle
 import time
