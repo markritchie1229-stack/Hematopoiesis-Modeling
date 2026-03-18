@@ -1,3 +1,5 @@
+#This is Dr. Paula Vaquez's code
+
 import numpy as np
 import random
 
