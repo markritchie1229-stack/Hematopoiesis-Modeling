@@ -1,3 +1,4 @@
+#This file reads the pickle that you create and puts the simulation data into csv form, ready for further use
 import pickle
 import pandas as pd
 
