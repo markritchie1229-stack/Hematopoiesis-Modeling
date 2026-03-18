@@ -1,3 +1,4 @@
+# These set the parameters that the model will run off of and ensure that the parameters will be used to model the cell division of 100 unique seeds
 import numpy as np
 import pickle
 import time
@@ -173,7 +174,7 @@ def simulate_root(root_id, lt_start, st_start, steps, params, seed):
 
 
 # =========================================================
-# MULTI ROOT DRIVER
+# MULTI ROOT DRIVER 
 # =========================================================
 def run_simulation(n_roots, lt_start, st_start, steps):
 
@@ -192,14 +193,14 @@ def run_simulation(n_roots, lt_start, st_start, steps):
 
     print("\nFinished:", time.ctime(), "\n")
     return results
-
+# Ensures that the same 100 unique cell IDs will be ran everytime for reproducibility. The seed number ensures reproducibility 
 
 # =========================================================
 # MAIN
 # =========================================================
 if __name__ == "__main__":
 
-    ROOTS = 100
+    ROOTS = 100   #Number of roots being used
     LT_START = 1000
     ST_START = 1000
 
