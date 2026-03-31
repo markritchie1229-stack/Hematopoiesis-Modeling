@@ -2,6 +2,7 @@
 """
 Integrated Hematopoiesis Sensitivity Analysis Script (FIXED)
 
+- Calculates and ranks how greatly each parameter affects the lineage trees and generational cell counts
 Updates:
 - Correct handling of discrete parameters (thresholds)
 - Fixed logic bug in sensitivity loop
