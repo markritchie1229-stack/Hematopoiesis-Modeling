@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+
+import numpy as np
+import copy
+from collections import defaultdict
+import matplotlib.pyplot as plt
+
+# ----------------------------
+# Base Parameters
+# ----------------------------
+base_params = {
+    "LT_HSC_DIVISION_THRESHOLD": 10,
+    "ST_HSC_DIVISION_THRESHOLD": 3,
+
+    "PAA": 0.0025,
+    "PAB": 0.0025,
+
+    "PQA": 0.05,
+    "PQB": 0.15,
+
+    "P_EXIT_QUIESCENCE_A": 0.05,
+    "P_EXIT_QUIESCENCE_B": 0.15,
+
+    "P1A": 0.60,
+    "P2A": 0.3090,
+    "P3A": 0.0147,
+    "P4A": 0.0763,
+
+    "P1B": 0.50,
+    "P2B": 0.0117,
+    "P3B": 0.216,
+    "P4B": 0.2723,
+
+    "LT_HSC_TIME_MEAN": 40,
+    "LT_HSC_TIME_STD": 19.6,
+    "ST_HSC_TIME_MEAN": 20,
+    "ST_HSC_TIME_STD": 10,
+}
+
+# ----------------------------
+# Normalize fate probabilities
+# ----------------------------
+def normalize_fate(params, prefix):
+    keys = [f"P1{prefix}", f"P2{prefix}", f"P3{prefix}", f"P4{prefix}"]
+    vals = np.array([params[k] for k in keys])
+    vals = np.clip(vals, 1e-8, None)
+    vals = vals / np.sum(vals)
+    for i, k in enumerate(keys):
+        params[k] = vals[i]
+
+# ----------------------------
+# Simulation
+# ----------------------------
+def simulate(params, seed=0, steps=300, initial_cells=1000):
+    rng = np.random.default_rng(seed)
+
+    cells = []
+    for _ in range(initial_cells):
+        cells.append({
+            "type": "LT",
+            "state": "Active",
+            "divisions": 0,
+            "generation": 0,
+            "timer": rng.normal(params["LT_HSC_TIME_MEAN"], params["LT_HSC_TIME_STD"])
+        })
+
+    for _ in range(steps):
+        new_cells = []
+
+        for cell in cells:
+
+            # Apoptosis
+            if cell["state"] == "Active":
+                if cell["type"] == "LT":
+                    if rng.random() < params["PAA"]:
+                        continue
+                else:
+                    if rng.random() < params["PAB"]:
+                        continue
+
+            # Quiescence entry
+            if cell["state"] == "Active":
+                if cell["type"] == "LT":
+                    if rng.random() < params["PQA"]:
+                        cell["state"] = "Quiescent"
+                else:
+                    if rng.random() < params["PQB"]:
+                        cell["state"] = "Quiescent"
+
+            # Quiescence exit
+            if cell["state"] == "Quiescent":
+                if cell["type"] == "LT":
+                    if rng.random() < params["P_EXIT_QUIESCENCE_A"]:
+                        cell["state"] = "Active"
+                else:
+                    if rng.random() < params["P_EXIT_QUIESCENCE_B"]:
+                        cell["state"] = "Active"
+
+            # Threshold
+            threshold = params["LT_HSC_DIVISION_THRESHOLD"] if cell["type"] == "LT" else params["ST_HSC_DIVISION_THRESHOLD"]
+            if cell["divisions"] >= threshold:
+                continue
+
+            # Timer
+            cell["timer"] -= 1
+            if cell["timer"] > 0:
+                new_cells.append(cell)
+                continue
+
+            # Division
+            if cell["type"] == "LT":
+                normalize_fate(params, "A")
+                r = rng.random()
+
+                if r < params["P1A"]:
+                    children = ["LT", "LT"]
+                elif r < params["P1A"] + params["P2A"]:
+                    children = ["LT", "ST"]
+                else:
+                    children = ["ST"]
+
+                for ctype in children:
+                    new_cells.append({
+                        "type": ctype,
+                        "state": "Active",
+                        "divisions": cell["divisions"] + 1,
+                        "generation": cell["generation"] + 1,
+                        "timer": rng.normal(
+                            params["LT_HSC_TIME_MEAN"], params["LT_HSC_TIME_STD"]
+                        ) if ctype == "LT" else rng.normal(
+                            params["ST_HSC_TIME_MEAN"], params["ST_HSC_TIME_STD"]
+                        )
+                    })
+
+            else:
+                normalize_fate(params, "B")
+                r = rng.random()
+
+                if r < params["P1B"]:
+                    children = ["ST", "ST"]
+                elif r < params["P1B"] + params["P2B"]:
+                    children = ["ST"]
+                else:
+                    children = []
+
+                for ctype in children:
+                    new_cells.append({
+                        "type": ctype,
+                        "state": "Active",
+                        "divisions": cell["divisions"] + 1,
+                        "generation": cell["generation"] + 1,
+                        "timer": rng.normal(
+                            params["ST_HSC_TIME_MEAN"], params["ST_HSC_TIME_STD"]
+                        )
+                    })
+
+        cells = new_cells
+
+    counts = defaultdict(int)
+    for c in cells:
+        counts[(c["type"], c["generation"])] += 1
+
+    return counts
+
+# ----------------------------
+# Perturbation
+# ----------------------------
+def perturb_params(base, param_name, factor=None, delta=None):
+    p = copy.deepcopy(base)
+
+    if param_name in ["LT_HSC_DIVISION_THRESHOLD", "ST_HSC_DIVISION_THRESHOLD"]:
+        p[param_name] = max(1, int(round(p[param_name] + delta)))
+
+    elif param_name in ["P1A","P2A","P3A","P4A"]:
+        p[param_name] *= factor
+        normalize_fate(p, "A")
+
+    elif param_name in ["P1B","P2B","P3B","P4B"]:
+        p[param_name] *= factor
+        normalize_fate(p, "B")
+
+    else:
+        p[param_name] *= factor
+
+    return p
+
+# ----------------------------
+# Compare
+# ----------------------------
+def compare_counts(base_counts, pert_counts):
+    all_keys = set(base_counts) | set(pert_counts)
+    return sum(abs(base_counts.get(k, 0) - pert_counts.get(k, 0)) for k in all_keys)
+
+# ----------------------------
+# Sensitivity for given steps
+# ----------------------------
+def run_sensitivity_for_steps(steps):
+    base_counts = simulate(base_params, seed=42, steps=steps)
+    results = {}
+
+    for param in base_params.keys():
+        diffs = []
+
+        if param == "LT_HSC_DIVISION_THRESHOLD":
+            deltas = [-2, -1, 1, 2]
+            for d in deltas:
+                p = perturb_params(base_params, param, delta=d)
+                diffs.append(compare_counts(base_counts, simulate(p, seed=42, steps=steps)))
+
+        elif param == "ST_HSC_DIVISION_THRESHOLD":
+            deltas = [-1, 1]
+            for d in deltas:
+                p = perturb_params(base_params, param, delta=d)
+                diffs.append(compare_counts(base_counts, simulate(p, seed=42, steps=steps)))
+
+        else:
+            factors = [0.8, 0.9, 1.1, 1.2]
+            for f in factors:
+                p = perturb_params(base_params, param, factor=f)
+                diffs.append(compare_counts(base_counts, simulate(p, seed=42, steps=steps)))
+
+        results[param] = np.mean(diffs)
+
+    return results
+
+# ----------------------------
+# MAIN
+# ----------------------------
+if __name__ == "__main__":
+
+    step_range = range(50, 301)
+    all_results = {param: [] for param in base_params.keys()}
+
+    print("Running step sweep...")
+
+    for i, s in enumerate(step_range):
+        print(f"[{i+1}/{len(step_range)}] Running steps = {s}")
+
+        res = run_sensitivity_for_steps(s)
+
+        for param in base_params.keys():
+            all_results[param].append(res[param])
+
+    # Plot
+    plt.figure(figsize=(12, 8))
+
+    for param, values in all_results.items():
+        plt.plot(step_range, values, label=param)
+
+    plt.xlabel("Steps")
+    plt.ylabel("Sensitivity Score")
+    plt.title("Parameter Sensitivity vs Simulation Steps")
+    plt.legend(fontsize=8)
+    plt.grid()
+
+    plt.tight_layout()
+    plt.show()
